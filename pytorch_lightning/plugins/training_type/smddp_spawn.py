@@ -15,7 +15,7 @@ import torch
 
 from pytorch_lightning import _logger as log
 from pytorch_lightning.overrides import LightningDistributedModule
-from pytorch_lightning.plugins.training_type.ddp import DDPPlugin
+from pytorch_lightning.plugins.training_type.ddp_spawn import DDPSpawnPlugin
 from pytorch_lightning.utilities import _SMDIST_AVAILABLE
 
 if _SMDIST_AVAILABLE:
@@ -23,7 +23,7 @@ if _SMDIST_AVAILABLE:
     from smdistributed.dataparallel.torch.parallel.distributed import DistributedDataParallel
 
 
-class SMDDPPlugin(DDPPlugin):
+class SMDDPSpawnPlugin(DDPPlugin):
 
     def init_ddp_connection(self, global_rank: int, world_size: int) -> None:
 
