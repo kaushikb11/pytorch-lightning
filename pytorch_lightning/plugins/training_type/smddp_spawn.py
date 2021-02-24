@@ -21,7 +21,7 @@ if _SMDIST_AVAILABLE:
     from smdistributed.dataparallel.torch.parallel.distributed import DistributedDataParallel
 
 
-class SMDDPSpawnPlugin(DDPPlugin):
+class SMDDPSpawnPlugin(DDPSpawnPlugin):
 
     def init_ddp_connection(self, global_rank: int, world_size: int) -> None:
 
