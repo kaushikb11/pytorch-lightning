@@ -66,6 +66,8 @@ class DistributedType(LightningEnum):
     HOROVOD = 'horovod'
     DDP_SHARDED = 'ddp_sharded'
     DDP_SHARDED_SPAWN = 'ddp_sharded_spawn'
+    SMDDP = 'smddp'
+    SMDDP_SPAWN = 'smddp_spawn'
     RPC_SEQUENTIAL_PLUGIN = 'rpc_sequential'
 
 

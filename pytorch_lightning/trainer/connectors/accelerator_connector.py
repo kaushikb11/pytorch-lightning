@@ -38,6 +38,8 @@ from pytorch_lightning.plugins import (
     ShardedNativeMixedPrecisionPlugin,
     SingleDevicePlugin,
     SingleTPUPlugin,
+    SMDDPPlugin,
+    SMDDPSpawnPlugin,
     TPUHalfPrecisionPlugin,
     TPUSpawnPlugin,
     TrainingTypePlugin,
@@ -367,6 +369,8 @@ class AcceleratorConnector(object):
             use_ddp_cpu_slurm = use_ddp_cpu_spawn and self.is_slurm_managing_tasks
             use_ddp_sharded = self._distrib_type == DistributedType.DDP_SHARDED
             use_ddp_sharded_spawn = self._distrib_type == DistributedType.DDP_SHARDED_SPAWN
+            use_smddp = self._distrib_type == DistributedType.SMDDP
+            use_smddp_spawn = self._distrib_type == DistributedType.SMDDP_SPAWN
 
             # TODO: decouple from TE
             # ddp script mode uses the same flags as TE
@@ -383,6 +387,10 @@ class AcceleratorConnector(object):
                 ddp_plugin_cls = DDPPlugin
             elif use_ddp_spawn or use_ddp_cpu_spawn:
                 ddp_plugin_cls = DDPSpawnPlugin
+            elif use_smddp:
+                ddp_plugin_cls = SMDDPPlugin
+            elif use_smddp_spawn:
+                ddp_plugin_cls = SMDDPSpawnPlugin
             else:
                 ddp_plugin_cls = DDPPlugin
 
@@ -504,7 +512,10 @@ class AcceleratorConnector(object):
         if self.num_gpus > 0 and not _on_cpu:
             self._device_type = DeviceType.GPU
 
-        _distrib_types = (DistributedType.DP, DistributedType.DDP, DistributedType.DDP_SPAWN, DistributedType.DDP2)
+        _distrib_types = (
+            DistributedType.DP, DistributedType.DDP, DistributedType.DDP_SPAWN, DistributedType.DDP2,
+            DistributedType.SMDDP, DistributedType.SMDDP_SPAWN
+        )
         # DP and DDP2 cannot run without GPU
         if self.num_gpus == 0 and self._distrib_type in _distrib_types and not _on_cpu:
             rank_zero_warn(
@@ -519,8 +530,8 @@ class AcceleratorConnector(object):
 
         # for DDP overwrite nb processes by requested GPUs
         if (
-            self._device_type == DeviceType.GPU
-            and self._distrib_type in (DistributedType.DDP, DistributedType.DDP_SPAWN)
+            self._device_type == DeviceType.GPU and self._distrib_type
+            in (DistributedType.DDP, DistributedType.DDP_SPAWN, DistributedType.SMDDP, DistributedType.SMDDP_SPAWN)
         ):
             self.num_processes = self.num_gpus
 
@@ -532,7 +543,10 @@ class AcceleratorConnector(object):
             self._set_horovod_backend()
 
         # throw error to force user ddp or ddp2 choice
-        _ddp = (DistributedType.DDP, DistributedType.DDP_SPAWN, DistributedType.DDP2)
+        _ddp = (
+            DistributedType.DDP, DistributedType.DDP_SPAWN, DistributedType.DDP2, DistributedType.SMDDP,
+            DistributedType.SMDDP_SPAWN
+        )
         if (self.num_nodes > 1 and self._distrib_type not in _ddp):
             raise MisconfigurationException(
                 'DataParallel does not support num_nodes > 1. Switching to DistributedDataParallel for you. '
