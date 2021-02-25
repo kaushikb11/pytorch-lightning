@@ -251,7 +251,8 @@ class AcceleratorConnector(object):
     def use_ddp(self) -> bool:
         return self._distrib_type in (
             DistributedType.DDP, DistributedType.DDP_SPAWN, DistributedType.DDP_SHARDED,
-            DistributedType.DDP_SHARDED_SPAWN, DistributedType.DEEPSPEED
+            DistributedType.DDP_SHARDED_SPAWN, DistributedType.DEEPSPEED, DistributedType.SMDDP,
+            DistributedType.SMDDP_SPAWN
         )
 
     @property
