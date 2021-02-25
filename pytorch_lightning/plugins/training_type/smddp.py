@@ -33,7 +33,7 @@ class SMDDPPlugin(DDPPlugin):
 
         if not dist.is_initialized():
             log.info(f"initializing ddp: GLOBAL_RANK: {global_rank}, MEMBER: {global_rank + 1}/{world_size}")
-            dist.init_process_group(self.torch_distributed_backend)
+            dist.init_process_group(self.torch_distributed_backend, rank=global_rank, world_size=world_size)
 
     def configure_ddp(self):
         self.pre_configure_ddp()
