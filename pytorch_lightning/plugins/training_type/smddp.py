@@ -54,6 +54,7 @@ class SMDDPPlugin(DDPPlugin):
 
         # on world_size=0 let everyone know training is starting
         if self.is_global_zero and not dist.is_initialized():
+            print("===" * 10, "Inside the loop")
             log.info("-" * 100)
             log.info(f"distributed_backend={self.distributed_backend}")
             log.info(f"All DDP processes registered. Starting ddp with {self.world_size} processes")
@@ -85,8 +86,9 @@ class SMDDPPlugin(DDPPlugin):
 
     def configure_ddp(self):
         self.pre_configure_ddp()
+        print("=Device IDs=" * 10, self.determine_ddp_device_ids())
         self._model = DistributedDataParallel(
             LightningDistributedModule(self.model),
-            device_ids=self.determine_ddp_device_ids(),
+            # device_ids=self.determine_ddp_device_ids(),
             **self._ddp_kwargs,
         )
