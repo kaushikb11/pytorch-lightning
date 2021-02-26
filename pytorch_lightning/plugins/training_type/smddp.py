@@ -19,6 +19,7 @@ from pytorch_lightning import _logger as log
 from pytorch_lightning.overrides import LightningDistributedModule
 from pytorch_lightning.plugins.training_type.ddp import DDPPlugin
 from pytorch_lightning.utilities import _SMDIST_AVAILABLE
+from pytorch_lightning.utilities.distributed import rank_zero_only
 from pytorch_lightning.utilities.seed import seed_everything
 
 if _SMDIST_AVAILABLE:
