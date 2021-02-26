@@ -31,6 +31,9 @@ class SMDDPPlugin(DDPPlugin):
 
     distributed_backend = "smddp"
 
+    def setup(self, model):
+        pass
+
     def pre_dispatch(self):
         # TODO: check if needed
         seed = os.environ.get("PL_GLOBAL_SEED")
