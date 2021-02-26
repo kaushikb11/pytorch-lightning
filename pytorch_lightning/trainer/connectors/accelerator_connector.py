@@ -44,7 +44,12 @@ from pytorch_lightning.plugins import (
     TPUSpawnPlugin,
     TrainingTypePlugin,
 )
-from pytorch_lightning.plugins.environments import ClusterEnvironment, SLURMEnvironment, TorchElasticEnvironment
+from pytorch_lightning.plugins.environments import (
+    ClusterEnvironment,
+    SagemakerEnvironment,
+    SLURMEnvironment,
+    TorchElasticEnvironment,
+)
 from pytorch_lightning.tuner.auto_gpu_select import pick_multiple_gpus
 from pytorch_lightning.utilities import (
     _APEX_AVAILABLE,
@@ -302,6 +307,11 @@ class AcceleratorConnector(object):
         te_flags_passed = "WORLD_SIZE" in os.environ and ("GROUP_RANK" in os.environ or "NODE_RANK" in os.environ)
         return te_flags_passed
 
+    @property
+    def for_sagemaker(self) -> bool:
+        return isinstance(self._training_type_plugin,
+                          SMDDPPlugin) or isinstance(self._training_type_plugin, SMDDPSpawnPlugin)
+
     def select_precision_plugin(self) -> PrecisionPlugin:
         # set precision type
         self.amp_type = AMPType.from_str(self.amp_type)
@@ -466,6 +476,8 @@ class AcceleratorConnector(object):
             # TODO: decouple DDP from TE
             #   refactor and let generic cluster env hold the information about who spawns the processes
             os.environ["PL_IN_DDP_SUBPROCESS"] = "1"
+        elif self.for_sagemaker:
+            env = SagemakerEnvironment()
         else:
             # TODO: maybe introduce a DefaultEnvironment?
             env = TorchElasticEnvironment()
