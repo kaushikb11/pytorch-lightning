@@ -86,9 +86,10 @@ class SMDDPPlugin(DDPPlugin):
 
     def configure_ddp(self):
         self.pre_configure_ddp()
-        print("=Device IDs=" * 10, self.determine_ddp_device_ids())
+        print("=Device IDs=" * 5, self.determine_ddp_device_ids())
+        print("=Local Device IDs=" * 5, dist.get_local_rank())
         self._model = DistributedDataParallel(
             LightningDistributedModule(self.model),
-            # device_ids=self.determine_ddp_device_ids(),
+            device_ids=[dist.get_local_rank()],
             **self._ddp_kwargs,
         )
