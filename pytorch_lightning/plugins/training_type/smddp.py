@@ -105,9 +105,9 @@ class SMDDPPlugin(ParallelPlugin):
             log.info(f"All DDP processes registered. Starting ddp with {self.world_size} processes")
             log.info("-" * 100)
 
-        # set the ranks and devices
-        self.dist.rank = self.global_rank
-        self.dist.device = self.root_device
+        # # set the ranks and devices
+        # self.dist.rank = self.global_rank
+        # self.dist.device = self.root_device
 
         if self.sync_batchnorm:
             self.model = self.configure_sync_batchnorm(self.model)
@@ -136,7 +136,7 @@ class SMDDPPlugin(ParallelPlugin):
 
     def configure_ddp(self):
         # self.pre_configure_ddp()
-        print("=Device IDs=" * 5, self.determine_ddp_device_ids())
+        # print("=Device IDs=" * 5, self.determine_ddp_device_ids())
         print("=Local Device IDs=" * 5, dist.get_local_rank())
         self._model = DistributedDataParallel(
             LightningDistributedModule(self.model),
