@@ -18,6 +18,7 @@ import torch
 
 from pytorch_lightning import _logger as log
 from pytorch_lightning.overrides import LightningDistributedModule
+from pytorch_lightning.plugins.environments.cluster_environment import ClusterEnvironment
 from pytorch_lightning.plugins.training_type.parallel import ParallelPlugin
 from pytorch_lightning.utilities import _SMDIST_AVAILABLE
 from pytorch_lightning.utilities.distributed import rank_zero_only
@@ -42,6 +43,8 @@ class SMDDPPlugin(ParallelPlugin):
         super().__init__(parallel_devices=parallel_devices, cluster_environment=cluster_environment)
         self.sync_batchnorm = sync_batchnorm
         self._ddp_kwargs = kwargs
+        self.node_rank = 0
+        self.num_processes = len(parallel_devices) if parallel_devices is not None else parallel_devices
 
     @property
     def root_device(self):
@@ -50,8 +53,9 @@ class SMDDPPlugin(ParallelPlugin):
     def setup(self, model):
         self._model = model
 
-        self.global_rank = dist.get_rank()
+        self.node_rank = self.cluster_environment.node_rank()
         self.local_rank = self.cluster_environment.local_rank()
+        self.global_rank = self.node_rank * self.num_processes + self.local_rank
         self.world_size = self.cluster_environment.world_size()
 
         rank_zero_only.rank = self.global_rank
@@ -62,9 +66,6 @@ class SMDDPPlugin(ParallelPlugin):
         seed = os.environ.get("PL_GLOBAL_SEED")
         if seed is not None:
             seed_everything(int(seed))
-
-        # determine which process we are and world size
-        self.set_world_ranks()
 
         # set warning rank
         rank_zero_only.rank = self.global_rank
