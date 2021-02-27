@@ -141,5 +141,5 @@ class SMDDPPlugin(ParallelPlugin):
         self._model = DistributedDataParallel(
             LightningDistributedModule(self.model),
             device_ids=[dist.get_local_rank()],
-            **self._ddp_kwargs,
+            # **self._ddp_kwargs,
         )
