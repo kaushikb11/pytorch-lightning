@@ -50,6 +50,24 @@ class SMDDPPlugin(ParallelPlugin):
     def root_device(self):
         return self.parallel_devices[self.local_rank]
 
+    def barrier(self, *args, **kwargs) -> None:
+        pass
+
+    def reduce(self, tensor: Union[Any, torch.Tensor], *args: Any, **kwargs: Any) -> Union[Any, torch.Tensor]:
+        """
+        Reduces a tensor from several distributed processes to one aggregated tensor.
+        As this plugin only operates with a single device, the reduction is simply the identity.
+
+        Args:
+            tensor: the tensor to sync and reduce
+            *args: ignored
+            **kwargs: ignored
+
+        Return:
+            the unmodified input as reduction is not needed for single process operation
+        """
+        return tensor
+
     def setup(self, model):
         self._model = model
 
