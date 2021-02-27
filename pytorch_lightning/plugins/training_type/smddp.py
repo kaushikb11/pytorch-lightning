@@ -17,7 +17,7 @@ import torch
 
 from pytorch_lightning import _logger as log
 from pytorch_lightning.overrides import LightningDistributedModule
-from pytorch_lightning.plugins.training_type.ddp import DDPPlugin
+from pytorch_lightning.plugins.training_type.parallel import ParallelPlugin
 from pytorch_lightning.utilities import _SMDIST_AVAILABLE
 from pytorch_lightning.utilities.distributed import rank_zero_only
 from pytorch_lightning.utilities.seed import seed_everything
@@ -27,12 +27,34 @@ if _SMDIST_AVAILABLE:
     from smdistributed.dataparallel.torch.parallel.distributed import DistributedDataParallel
 
 
-class SMDDPPlugin(DDPPlugin):
+class SMDDPPlugin(ParallelPlugin):
 
     distributed_backend = "smddp"
 
+    def __init__(
+        self,
+        parallel_devices: Optional[List[torch.device]] = None,
+        cluster_environment: Optional[ClusterEnvironment] = None,
+        sync_batchnorm: bool = False,
+        **kwargs: Union[Any, Dict[str, Any]],
+    ):
+        super().__init__(parallel_devices=parallel_devices, cluster_environment=cluster_environment)
+        self.sync_batchnorm = sync_batchnorm
+        self._ddp_kwargs = kwargs
+
+    @property
+    def root_device(self):
+        return self.parallel_devices[self.local_rank]
+
     def setup(self, model):
-        pass
+        self._model = model
+
+        self.global_rank = dist.get_rank()
+        self.local_rank = self.cluster_environment.local_rank()
+        self.world_size = self.cluster_environment.world_size()
+
+        rank_zero_only.rank = self.global_rank
+        self.model_to_device()
 
     def pre_dispatch(self):
         # TODO: check if needed
@@ -75,7 +97,12 @@ class SMDDPPlugin(DDPPlugin):
 
         self.configure_ddp()
 
-        self.barrier()
+        # self.barrier()
+
+    def model_to_device(self):
+        if self.on_gpu:
+            torch.cuda.set_device(self.root_device)
+        self.model.to(self.root_device)
 
     def init_ddp_connection(self, global_rank: int, world_size: int) -> None:
 
@@ -88,7 +115,7 @@ class SMDDPPlugin(DDPPlugin):
             dist.init_process_group(self.torch_distributed_backend, rank=global_rank, world_size=world_size)
 
     def configure_ddp(self):
-        self.pre_configure_ddp()
+        # self.pre_configure_ddp()
         print("=Device IDs=" * 5, self.determine_ddp_device_ids())
         print("=Local Device IDs=" * 5, dist.get_local_rank())
         self._model = DistributedDataParallel(
