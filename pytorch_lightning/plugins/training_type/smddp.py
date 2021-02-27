@@ -48,7 +48,7 @@ class SMDDPPlugin(ParallelPlugin):
 
     @property
     def root_device(self):
-        return self.parallel_devices[self.local_rank]
+        return self.local_rank
 
     def barrier(self, *args, **kwargs) -> None:
         pass
@@ -132,7 +132,7 @@ class SMDDPPlugin(ParallelPlugin):
 
         if not dist.is_initialized():
             log.info(f"initializing ddp: GLOBAL_RANK: {global_rank}, MEMBER: {global_rank + 1}/{world_size}")
-            dist.init_process_group(self.torch_distributed_backend, rank=global_rank, world_size=world_size)
+            dist.init_process_group(self.torch_distributed_backend)
 
     def configure_ddp(self):
         # self.pre_configure_ddp()
