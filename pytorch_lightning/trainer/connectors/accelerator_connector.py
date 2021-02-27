@@ -309,8 +309,7 @@ class AcceleratorConnector(object):
 
     @property
     def for_sagemaker(self) -> bool:
-        return isinstance(self._training_type_plugin,
-                          SMDDPPlugin) or isinstance(self._training_type_plugin, SMDDPSpawnPlugin)
+        return self.distributed_backend == DistributedType.SMDDP
 
     def select_precision_plugin(self) -> PrecisionPlugin:
         # set precision type
