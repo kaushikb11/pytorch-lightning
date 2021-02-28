@@ -42,13 +42,19 @@ class SMDDPPlugin(ParallelPlugin):
     ):
         super().__init__(parallel_devices=parallel_devices, cluster_environment=cluster_environment)
         self.sync_batchnorm = sync_batchnorm
+        self.num_nodes = 1
         self._ddp_kwargs = kwargs
         self.node_rank = 0
         self.num_processes = len(parallel_devices) if parallel_devices is not None else parallel_devices
 
     @property
     def root_device(self):
-        return self.local_rank
+        return self.parallel_devices[self.local_rank]
+
+    @property
+    def distributed_sampler_kwargs(self):
+        distributed_sampler_kwargs = dict(num_replicas=(self.num_nodes * self.num_processes), rank=self.global_rank)
+        return distributed_sampler_kwargs
 
     def barrier(self, *args, **kwargs) -> None:
         pass
