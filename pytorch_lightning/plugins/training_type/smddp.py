@@ -15,6 +15,7 @@ import os
 from typing import Any, Dict, List, Optional, Union
 
 import torch
+from torch.optim import Optimizer
 
 from pytorch_lightning import _logger as log
 from pytorch_lightning.overrides import LightningDistributedModule
