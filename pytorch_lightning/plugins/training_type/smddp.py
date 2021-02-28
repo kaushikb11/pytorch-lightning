@@ -18,10 +18,11 @@ import torch
 
 from pytorch_lightning import _logger as log
 from pytorch_lightning.overrides import LightningDistributedModule
+from pytorch_lightning.overrides.distributed import prepare_for_backward
 from pytorch_lightning.plugins.environments.cluster_environment import ClusterEnvironment
 from pytorch_lightning.plugins.training_type.parallel import ParallelPlugin
 from pytorch_lightning.utilities import _SMDIST_AVAILABLE
-from pytorch_lightning.utilities.distributed import rank_zero_only
+from pytorch_lightning.utilities.distributed import rank_zero_only, ReduceOp
 from pytorch_lightning.utilities.seed import seed_everything
 
 if _SMDIST_AVAILABLE:
@@ -57,9 +58,18 @@ class SMDDPPlugin(ParallelPlugin):
         return distributed_sampler_kwargs
 
     def barrier(self, *args, **kwargs) -> None:
-        pass
+        if dist.is_initialized():
+            dist.barrier()
 
-    def reduce(self, tensor: Union[Any, torch.Tensor], *args: Any, **kwargs: Any) -> Union[Any, torch.Tensor]:
+    def broadcast(self, obj: object, src: int = 0) -> object:
+        return dist.broadcast(obj)
+
+    def pre_backward(self, closure_loss: torch.Tensor, should_accumulate: bool, optimizer: Optimizer, opt_idx: int):
+        """Run before precision plugin executes backward"""
+        if not self.lightning_module.automatic_optimization and self.model.require_backward_grad_sync:
+            prepare_for_backward(self.model, closure_loss)
+
+    def reduce(self, tensor, group: Optional[Any] = None, reduce_op: Optional[Union[ReduceOp, str]] = "mean"):
         """
         Reduces a tensor from several distributed processes to one aggregated tensor.
         As this plugin only operates with a single device, the reduction is simply the identity.
@@ -72,6 +82,8 @@ class SMDDPPlugin(ParallelPlugin):
         Return:
             the unmodified input as reduction is not needed for single process operation
         """
+        if isinstance(tensor, torch.Tensor):
+            tensor = self.sync_ddp_if_available(tensor, group, reduce_op=(reduce_op or "mean"))
         return tensor
 
     def setup(self, model):
@@ -123,7 +135,7 @@ class SMDDPPlugin(ParallelPlugin):
 
         self.configure_ddp()
 
-        # self.barrier()
+        self.barrier()
 
     def model_to_device(self):
         if self.on_gpu:
@@ -149,3 +161,60 @@ class SMDDPPlugin(ParallelPlugin):
             device_ids=[dist.get_local_rank()],
             # **self._ddp_kwargs,
         )
+
+    def sync_ddp_if_available(
+        self,
+        result: Union[torch.Tensor],
+        group: Optional[Any] = None,
+        reduce_op: Optional[Union[ReduceOp, str]] = None
+    ) -> torch.Tensor:
+        """
+        Function to reduce a tensor across worker processes during distributed training
+        Args:
+            result: the value to sync and reduce (typically tensor or number)
+            group: the process group to gather results from. Defaults to all processes (world)
+            reduce_op: the reduction operation. Defaults to sum.
+                Can also be a string of 'avg', 'mean' to calculate the mean during reduction.
+
+        Return:
+            reduced value
+        """
+        if dist.is_available() and dist.is_initialized():
+            return self.sync_ddp(result, group=group, reduce_op=reduce_op)
+        return result
+
+    def sync_ddp(
+        self,
+        result: Union[torch.Tensor],
+        group: Optional[Any] = None,
+        reduce_op: Optional[Union[ReduceOp, str]] = None
+    ) -> torch.Tensor:
+        """
+        Function to reduce the tensors from several ddp processes to one master process
+
+        Args:
+            result: the value to sync and reduce (typically tensor or number)
+            group: the process group to gather results from. Defaults to all processes (world)
+            reduce_op: the reduction operation. Defaults to sum.
+                Can also be a string of 'avg', 'mean' to calculate the mean during reduction.
+
+        Return:
+            reduced value
+        """
+        return result
+
+    def training_step(self, *args, **kwargs):
+        return self.model(*args, **kwargs)
+
+    def validation_step(self, *args, **kwargs):
+        return self.model(*args, **kwargs)
+
+    def test_step(self, *args, **kwargs):
+        return self.model(*args, **kwargs)
+
+    def predict(self, *args, **kwargs):
+        return self.model(*args, **kwargs)
+
+    def post_training_step(self):
+        if not self.lightning_module.automatic_optimization:
+            self.model.require_backward_grad_sync = True
