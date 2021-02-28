@@ -18,7 +18,9 @@ import torch
 from torch.optim import Optimizer
 
 from pytorch_lightning import _logger as log
+from pytorch_lightning.core.lightning import LightningModule
 from pytorch_lightning.overrides import LightningDistributedModule
+from pytorch_lightning.overrides.base import _LightningModuleWrapperBase
 from pytorch_lightning.overrides.distributed import prepare_for_backward
 from pytorch_lightning.plugins.environments.cluster_environment import ClusterEnvironment
 from pytorch_lightning.plugins.training_type.parallel import ParallelPlugin
@@ -86,6 +88,10 @@ class SMDDPPlugin(ParallelPlugin):
         if isinstance(tensor, torch.Tensor):
             tensor = self.sync_ddp_if_available(tensor, group, reduce_op=(reduce_op or "mean"))
         return tensor
+
+    @property
+    def lightning_module(self):
+        return self.unwrap_lightning_module()
 
     def setup(self, model):
         self._model = model
@@ -219,3 +225,11 @@ class SMDDPPlugin(ParallelPlugin):
     def post_training_step(self):
         if not self.lightning_module.automatic_optimization:
             self.model.require_backward_grad_sync = True
+
+    def unwrap_lightning_module(self) -> LightningModule:
+        model = self._model
+        if isinstance(model, (DistributedDataParallel)):
+            model = model.module
+        if isinstance(model, _LightningModuleWrapperBase):
+            model = model.module
+        return model
