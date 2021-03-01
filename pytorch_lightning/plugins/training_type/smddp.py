@@ -57,7 +57,6 @@ class SMDDPPlugin(ParallelPlugin):
         self.dist = LightningDistributed()
         self.num_nodes = len(os.environ['SM_HOSTS'])
         self._ddp_kwargs = kwargs
-        self.node_rank = 0
         self.num_processes = len(parallel_devices) if parallel_devices is not None else parallel_devices
 
     @property

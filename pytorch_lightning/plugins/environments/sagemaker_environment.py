@@ -48,4 +48,4 @@ class SagemakerEnvironment(ClusterEnvironment):
         return int(dist.get_local_rank())
 
     def node_rank(self) -> int:
-        return int(os.environ.get('GROUP_RANK', 0))
+        return dist.get_rank()
