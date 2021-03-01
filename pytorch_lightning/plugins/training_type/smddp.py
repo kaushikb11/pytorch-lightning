@@ -50,10 +50,12 @@ class SMDDPPlugin(ParallelPlugin):
         sync_batchnorm: bool = False,
         **kwargs: Union[Any, Dict[str, Any]],
     ):
+        parallel_device_ids = list(range(torch.cuda.device_count()))
+        parallel_devices = [torch.device("cuda", i) for i in parallel_device_ids]
         super().__init__(parallel_devices=parallel_devices, cluster_environment=cluster_environment)
         self.sync_batchnorm = sync_batchnorm
         self.dist = LightningDistributed()
-        self.num_nodes = 1
+        self.num_nodes = len(os.environ['SM_HOSTS'])
         self._ddp_kwargs = kwargs
         self.node_rank = 0
         self.num_processes = len(parallel_devices) if parallel_devices is not None else parallel_devices
