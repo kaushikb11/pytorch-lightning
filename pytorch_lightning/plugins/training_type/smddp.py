@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import io
 import os
 from typing import Any, Dict, List, Optional, Union
 
@@ -24,9 +25,14 @@ from pytorch_lightning.overrides.base import _LightningModuleWrapperBase
 from pytorch_lightning.overrides.distributed import prepare_for_backward
 from pytorch_lightning.plugins.environments.cluster_environment import ClusterEnvironment
 from pytorch_lightning.plugins.training_type.parallel import ParallelPlugin
-from pytorch_lightning.utilities import _SMDIST_AVAILABLE
+from pytorch_lightning.utilities import _GROUP_AVAILABLE, _SMDIST_AVAILABLE
 from pytorch_lightning.utilities.distributed import rank_zero_only, ReduceOp
 from pytorch_lightning.utilities.seed import seed_everything
+
+WORLD = None
+if _GROUP_AVAILABLE:
+    from torch.distributed import group
+    WORLD = group.WORLD
 
 if _SMDIST_AVAILABLE:
     import smdistributed.dataparallel.torch.distributed as dist
@@ -46,6 +52,7 @@ class SMDDPPlugin(ParallelPlugin):
     ):
         super().__init__(parallel_devices=parallel_devices, cluster_environment=cluster_environment)
         self.sync_batchnorm = sync_batchnorm
+        self.dist = LightningDistributed()
         self.num_nodes = 1
         self._ddp_kwargs = kwargs
         self.node_rank = 0
@@ -65,7 +72,7 @@ class SMDDPPlugin(ParallelPlugin):
             dist.barrier()
 
     def broadcast(self, obj: object, src: int = 0) -> object:
-        return dist.broadcast(obj)
+        return self.dist.broadcast(obj)
 
     def pre_backward(self, closure_loss: torch.Tensor, should_accumulate: bool, optimizer: Optimizer, opt_idx: int):
         """Run before precision plugin executes backward"""
@@ -131,8 +138,8 @@ class SMDDPPlugin(ParallelPlugin):
             log.info("-" * 100)
 
         # # set the ranks and devices
-        # self.dist.rank = self.global_rank
-        # self.dist.device = self.root_device
+        self.dist.rank = self.global_rank
+        self.dist.device = self.root_device
 
         if self.sync_batchnorm:
             self.model = self.configure_sync_batchnorm(self.model)
@@ -233,3 +240,40 @@ class SMDDPPlugin(ParallelPlugin):
         if isinstance(model, _LightningModuleWrapperBase):
             model = model.module
         return model
+
+
+class LightningDistributed:
+
+    def __init__(self, rank=None, device=None):
+        self.rank = rank
+        self.device = device
+
+    def broadcast(self, obj: Any, group=WORLD):
+        if self.rank == 0:
+            self._emit(obj, group)
+        else:
+            obj = self._receive(group)
+        return obj
+
+    def _broadcast(self, tensor, src=0, group=WORLD):
+        if group is None:
+            return dist.broadcast(tensor, src=src)
+        return dist.broadcast(tensor, src=0, group=group)
+
+    def _emit(self, obj: Any, group=WORLD):
+        buffer = io.BytesIO()
+        torch.save(obj, buffer)
+        data = bytearray(buffer.getbuffer())
+        length_tensor = torch.tensor([len(data)]).long().to(self.device)
+        self._broadcast(length_tensor, src=0, group=group)
+        data_tensor = torch.ByteTensor(data).to(self.device)
+        self._broadcast(data_tensor, src=0, group=group)
+
+    def _receive(self, group=WORLD):
+        length_tensor = torch.tensor([0]).long().to(self.device)
+        self._broadcast(length_tensor, src=0, group=group)
+        data_tensor = torch.empty([length_tensor.item()], dtype=torch.uint8).to(self.device)
+        self._broadcast(data_tensor, src=0, group=group)
+        buffer = io.BytesIO(data_tensor.cpu().numpy())
+        obj = torch.load(buffer)
+        return obj
