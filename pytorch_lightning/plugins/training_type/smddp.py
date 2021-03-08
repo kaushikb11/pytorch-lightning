@@ -107,6 +107,10 @@ class SMDDPPlugin(ParallelPlugin):
         self.node_rank = self.cluster_environment.node_rank()
         self.local_rank = self.cluster_environment.local_rank()
         self.global_rank = self.node_rank * self.num_processes + self.local_rank
+        print("======" * 10, "Node Rank", self.node_rank)
+        print("======" * 10, "Node Rank", self.num_processes)
+        print("======" * 10, "Node Rank", self.local_rank)
+        print("======" * 10, "Node Rank", self.global_rank)
         self.world_size = self.cluster_environment.world_size()
 
         rank_zero_only.rank = self.global_rank
